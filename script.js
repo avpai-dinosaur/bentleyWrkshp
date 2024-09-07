@@ -21,17 +21,20 @@ function timeRangeSlider(meteoriteLayer, id, data) {
     const minYear = 1800;
     const maxYear = getYear(yearDim.top(1)[0]);
     const countPerYear = yearDim.group().reduceCount();
-
+    const maxCount = countPerYear.top(1)[0].value;
     let meteorites;
 
     // Populate chart data
     chart
-        .height(120)
+        .height(window.innerHeight * 0.20)
         .dimension(yearDim)
         .group(countPerYear)
         .x(d3.scaleLinear().domain([minYear, maxYear]))
         .round(Math.round)
         .elasticY(true)
+        .y(d3.scaleSqrt().domain([0, Math.sqrt(maxCount)]).nice())
+        .yAxisLabel("Meteorites")  // Add a label for the y-axis
+        .renderHorizontalGridLines(true)  // Optionally add grid lines 
         .on('renderlet', () => {
             const filter = chart.filter();
             if (filter) {
@@ -48,14 +51,19 @@ function timeRangeSlider(meteoriteLayer, id, data) {
             renderMeteorites(meteorites, meteoriteLayer);
         });
 
-
     // Format x and y ticks
     chart.xAxis().tickFormat(function (d) { return d }); // convert back to base unit
     chart.yAxis().tickFormat(d3.format(".2~s"));
-    chart.yAxis().ticks(3);
+    chart.yAxis().ticks(5);
 
     dc.registerChart(chart, id);
     dc.renderAll();
+
+    var doit;
+    window.addEventListener("resize", () => {
+        clearTimeout(doit);
+        doit = setTimeout(() => { dc.renderAll() }, 200)
+    });
 }
 
 function renderMeteorites(data, meteoriteLayer) {
@@ -93,11 +101,23 @@ const meteoriteLayer = L.layerGroup();
 meteoriteLayer.addTo(map);
 
 // Grab the data
-fetch("https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=10000")
+const LIMIT = 10000;
+fetch(`https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=${LIMIT}`)
     .then((response) => response.json())
     .then((data) => {
+        // Fisher-Yates Shuffle Algorithm
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+            }
+            return array;
+        }
+
+        const sample = shuffle(data).slice(0, LIMIT);
+
         // Filter out invalid year values
-        const validData = data.filter((elem) => {
+        const validData = sample.filter((elem) => {
             const date = new Date(elem.year);
             if (isNaN(date.getTime())) {
                 return false;
