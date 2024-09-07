@@ -18,7 +18,7 @@ function timeRangeSlider(meteoriteLayer, id, data) {
     const chart = dc.barChart(id);
     const ndx = crossfilter(data);
     const yearDim = ndx.dimension((elem) => getYear(elem));
-    const minYear = getYear(yearDim.bottom(1)[0]);
+    const minYear = 1800;
     const maxYear = getYear(yearDim.top(1)[0]);
     const countPerYear = yearDim.group().reduceCount();
 
@@ -26,7 +26,7 @@ function timeRangeSlider(meteoriteLayer, id, data) {
 
     // Populate chart data
     chart
-        .height(100)
+        .height(120)
         .dimension(yearDim)
         .group(countPerYear)
         .x(d3.scaleLinear().domain([minYear, maxYear]))
@@ -52,7 +52,7 @@ function timeRangeSlider(meteoriteLayer, id, data) {
     // Format x and y ticks
     chart.xAxis().tickFormat(function (d) { return d }); // convert back to base unit
     chart.yAxis().tickFormat(d3.format(".2~s"));
-    chart.yAxis().ticks(4);
+    chart.yAxis().ticks(3);
 
     dc.registerChart(chart, id);
     dc.renderAll();
@@ -64,12 +64,15 @@ function renderMeteorites(data, meteoriteLayer) {
     data.forEach((d) => {
         lat = isNaN(d.reclat) ? 0 : d.reclat;
         long = isNaN(d.reclong) ? 0 : d.reclong;
-        L.circle([lat, long], {
+        const marker = L.circleMarker([lat, long], {
             color: 'red',
             fillColor: '#f03',
             fillOpacity: 0.5,
-            radius: isNaN(d.mass) ? 0 : Math.log(d.mass)
-        }).addTo(meteoriteLayer);
+            weight: 0,
+            radius: (isNaN(d.mass) ? 0 : Math.log(d.mass)) / 2 + 5
+        });
+        marker.bindPopup(`<b>Location:</b> ${d.name}<br><b>Mass:</b> ${d.mass} (g)<br><b>Year:</b> ${getYear(d)}`);
+        marker.addTo(meteoriteLayer);
     });
 }
 
@@ -90,7 +93,7 @@ const meteoriteLayer = L.layerGroup();
 meteoriteLayer.addTo(map);
 
 // Grab the data
-fetch("https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=50000")
+fetch("https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=10000")
     .then((response) => response.json())
     .then((data) => {
         // Filter out invalid year values
@@ -104,4 +107,3 @@ fetch("https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=50000")
         timeRangeSlider(meteoriteLayer, "#year_range", validData);
     })
     .catch((err) => console.log(err));
-
