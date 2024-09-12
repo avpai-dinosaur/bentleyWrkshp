@@ -28,6 +28,21 @@ function filterMeteorites(yearStart, yearEnd, data) {
     return data.filter(includeMeteorite);
 }
 
+function legend(map, title, bins) {
+    const legend = L.control({ position: 'bottomleft' });
+    legend.onAdd = () => {
+        const div = L.DomUtil.create('div', 'info legend');
+        div.innerHTML += `<h4>${title}</h4>`
+        // loop through our intervals and generate a label with a colored square for each interval
+        for (let i = 0; i < bins.length; i++) {
+            div.innerHTML +=
+                '<i style="background:' + bins[i][0] + '"></i> \u2264 ' + bins[i][1] + '<br>';
+        }
+        return div;
+    };
+    legend.addTo(map);
+}
+
 function timeRangeSlider(meteoriteLayer, id, data, bins) {
     // Read data into a crossfilter
     const chart = dc.barChart(id);
@@ -156,7 +171,8 @@ fetch(`https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=${LIMIT}`)
             "#380900"
         ]
         const bins = equalFreqBin(validData, colors);
-        console.log(bins);
+        
+        legend(map, "Mass (g)", bins);
 
         timeRangeSlider(meteoriteLayer, "#year_range", validData, bins);
     })
