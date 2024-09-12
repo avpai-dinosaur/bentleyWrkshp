@@ -4,6 +4,21 @@ function getYear(meteorite) {
     return date.getFullYear();
 }
 
+function getMass(meteorite) {
+    return Math.floor(Number(meteorite.mass));
+}
+
+function equalFreqBin(data, colors) {
+    const sortedData = data.map(d => getMass(d)).sort((a, b) => a - b);
+    const bins = [];
+    for (let i = 0; i < colors.length - 1; ++i) {
+        let cutoff = (i + 1) * Math.floor(sortedData.length / colors.length);
+        bins.push([colors[i], sortedData[cutoff]]);
+    }
+    bins.push([colors[colors.length - 1], sortedData[sortedData.length - 1]]);
+    return bins;
+}
+
 function filterMeteorites(yearStart, yearEnd, data) {
     function includeMeteorite(meteorite) {
         const year = getYear(meteorite);
@@ -13,7 +28,7 @@ function filterMeteorites(yearStart, yearEnd, data) {
     return data.filter(includeMeteorite);
 }
 
-function timeRangeSlider(meteoriteLayer, id, data) {
+function timeRangeSlider(meteoriteLayer, id, data, bins) {
     // Read data into a crossfilter
     const chart = dc.barChart(id);
     const ndx = crossfilter(data);
@@ -48,7 +63,7 @@ function timeRangeSlider(meteoriteLayer, id, data) {
                 d3.select(id).select(".yearEnd").html(maxYear);
             }
             console.log(meteorites);
-            renderMeteorites(meteorites, meteoriteLayer);
+            renderMeteorites(meteorites, meteoriteLayer, bins);
         });
 
     // Format x and y ticks
@@ -66,18 +81,28 @@ function timeRangeSlider(meteoriteLayer, id, data) {
     });
 }
 
-function renderMeteorites(data, meteoriteLayer) {
+function renderMeteorites(data, meteoriteLayer, bins) {
     console.log("rendering");
     meteoriteLayer.clearLayers();
     data.forEach((d) => {
-        lat = isNaN(d.reclat) ? 0 : d.reclat;
-        long = isNaN(d.reclong) ? 0 : d.reclong;
+        let lat = isNaN(d.reclat) ? 0 : d.reclat;
+        let long = isNaN(d.reclong) ? 0 : d.reclong;
+        
+        let color;
+        for (let i = 0; i < bins.length; ++i) {
+            color = bins[i][0];
+            if (getMass(d) <= bins[i][1]) {
+                break;
+            }
+        }
+        
+        
         const marker = L.circleMarker([lat, long], {
-            color: 'red',
-            fillColor: '#f03',
-            fillOpacity: 0.5,
+            // color: color,
+            fillColor: color,
+            fillOpacity: 0.75,
             weight: 0,
-            radius: (isNaN(d.mass) ? 0 : Math.log(d.mass)) / 2 + 5
+            radius: 5
         });
         marker.bindPopup(`<b>Location:</b> ${d.name}<br><b>Mass:</b> ${d.mass} (g)<br><b>Year:</b> ${getYear(d)}`);
         marker.addTo(meteoriteLayer);
@@ -88,10 +113,9 @@ function renderMeteorites(data, meteoriteLayer) {
 const map = L.map("map", {
     preferCanvas: true
 }).setView([0, 0], 1);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://carto.com/">Carto</a>',
     maxZoom: 19,
-    attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     updateWhenIdle: true,
     updateWhenZooming: false
 }).addTo(map);
@@ -116,14 +140,24 @@ fetch(`https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=${LIMIT}`)
 
         const sample = shuffle(data).slice(0, LIMIT);
 
-        // Filter out invalid year values
+        // Filter out invalid year and mass values
         const validData = sample.filter((elem) => {
             const date = new Date(elem.year);
-            if (isNaN(date.getTime())) {
-                return false;
-            }
-            return true;
+            return !isNaN(date.getTime()) && !isNaN(Number(elem.mass));
         });
-        timeRangeSlider(meteoriteLayer, "#year_range", validData);
+
+        // get color ranges
+        const colors = [
+            "#ffcb05",
+            "#d0a200",
+            "#a27c00",
+            "#785700",
+            "#523300",
+            "#380900"
+        ]
+        const bins = equalFreqBin(validData, colors);
+        console.log(bins);
+
+        timeRangeSlider(meteoriteLayer, "#year_range", validData, bins);
     })
     .catch((err) => console.log(err));
