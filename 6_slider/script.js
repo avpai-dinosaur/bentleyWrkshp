@@ -1,4 +1,3 @@
-
 function getYear(meteorite) {
     const date = new Date(meteorite.year);
     return date.getFullYear();
@@ -17,6 +16,32 @@ function equalFreqBin(data, colors) {
     }
     bins.push([colors[colors.length - 1], sortedData[sortedData.length - 1]]);
     return bins;
+}
+
+function renderMeteorites(data, meteoriteLayer, bins) {
+    console.log(data);
+    meteoriteLayer.clearLayers();
+    data.forEach((d) => {
+        let lat = isNaN(d.reclat) ? 0 : d.reclat;
+        let long = isNaN(d.reclong) ? 0 : d.reclong;
+        
+        let color;
+        for (let i = 0; i < bins.length; ++i) {
+            color = bins[i][0];
+            if (getMass(d) <= bins[i][1]) {
+                break;
+            }
+        }
+
+        const marker = L.circleMarker([lat, long], {
+            fillColor: color,
+            fillOpacity: 0.75,
+            weight: 0,
+            radius: 5
+        });
+        marker.bindPopup(`<b>Location:</b> ${d.name}<br><b>Mass:</b> ${d.mass} (g)<br><b>Year:</b> ${getYear(d)}`);
+        marker.addTo(meteoriteLayer);
+    });
 }
 
 function filterMeteorites(yearStart, yearEnd, data) {
@@ -49,7 +74,7 @@ function timeRangeSlider(meteoriteLayer, id, data, bins) {
     const ndx = crossfilter(data);
     const yearDim = ndx.dimension((elem) => getYear(elem));
     const minYear = 1800;
-    const maxYear = getYear(yearDim.top(1)[0]);
+    const maxYear = 2024;
     const countPerYear = yearDim.group().reduceCount();
     const maxCount = countPerYear.top(1)[0].value;
     let meteorites;
@@ -96,67 +121,28 @@ function timeRangeSlider(meteoriteLayer, id, data, bins) {
     });
 }
 
-function renderMeteorites(data, meteoriteLayer, bins) {
-    console.log("rendering");
-    meteoriteLayer.clearLayers();
-    data.forEach((d) => {
-        let lat = isNaN(d.reclat) ? 0 : d.reclat;
-        let long = isNaN(d.reclong) ? 0 : d.reclong;
-        
-        let color;
-        for (let i = 0; i < bins.length; ++i) {
-            color = bins[i][0];
-            if (getMass(d) <= bins[i][1]) {
-                break;
-            }
-        }
-        
-        
-        const marker = L.circleMarker([lat, long], {
-            // color: color,
-            fillColor: color,
-            fillOpacity: 0.75,
-            weight: 0,
-            radius: 5
-        });
-        marker.bindPopup(`<b>Location:</b> ${d.name}<br><b>Mass:</b> ${d.mass} (g)<br><b>Year:</b> ${getYear(d)}`);
-        marker.addTo(meteoriteLayer);
-    });
-}
-
 // Initialize the map
 const map = L.map("map", {
     preferCanvas: true
 }).setView([0, 0], 1);
-L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://carto.com/">Carto</a>',
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
+    attribution:
+        '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     updateWhenIdle: true,
     updateWhenZooming: false
 }).addTo(map);
 
 // Create a layer for the meteorites
 const meteoriteLayer = L.layerGroup();
-meteoriteLayer.addTo(map);
+meteoriteLayer.addTo(map)
 
 // Grab the data
-const LIMIT = 10000;
-fetch(`https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=${LIMIT}`)
+fetch("https://data.nasa.gov/resource/gh4g-9sfh.json?$limit=50000")
     .then((response) => response.json())
     .then((data) => {
-        // Fisher-Yates Shuffle Algorithm
-        function shuffle(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]]; // Swap elements
-            }
-            return array;
-        }
-
-        const sample = shuffle(data).slice(0, LIMIT);
-
         // Filter out invalid year and mass values
-        const validData = sample.filter((elem) => {
+        const validData = data.filter((elem) => {
             const date = new Date(elem.year);
             return !isNaN(date.getTime()) && !isNaN(Number(elem.mass));
         });
